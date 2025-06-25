@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -24,29 +23,51 @@
     button:hover {
       background-color: #45a049;
     }
-    .log {
+    .log-box {
       margin-top: 30px;
       font-size: 16px;
       color: #333;
       max-width: 600px;
       margin-left: auto;
       margin-right: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .log-title {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .log-item {
+      margin: 10px 0;
+    }
+    .log-label {
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
   <h1>🎤 Voice Input for Gmail Assistant</h1>
   <button onclick="startListening()">Start Listening</button>
-  <div class="log" id="log"></div>
+
+  <div class="log-box">
+    <div class="log-item"><span class="log-label">🎙️ You said:</span> <span id="transcript">--</span></div>
+    <div class="log-item"><span class="log-label">📤 Sent to n8n:</span> <span id="n8n-status">--</span></div>
+  </div>
 
   <script>
-    const log = (msg) => {
-      document.getElementById("log").innerText = msg;
+    const setTranscript = (msg) => {
+      document.getElementById("transcript").innerText = msg;
+    };
+
+    const setN8nStatus = (msg) => {
+      document.getElementById("n8n-status").innerText = msg;
     };
 
     const sendToN8N = async (transcript) => {
       try {
-        log("🟡 Sending to n8n: " + transcript);
+        setN8nStatus("Sending...");
         const res = await fetch("https://n8n-service-m83k.onrender.com/webhook/voice-query", {
           method: "POST",
           headers: {
@@ -55,9 +76,9 @@
           body: JSON.stringify({ query: transcript }),
         });
         const result = await res.json();
-        log("✅ Sent to n8n! Response: " + JSON.stringify(result));
+        setN8nStatus("✅ " + JSON.stringify(result));
       } catch (err) {
-        log("❌ Error: " + err);
+        setN8nStatus("❌ Error: " + err.message);
         console.error(err);
       }
     };
@@ -70,12 +91,12 @@
 
       recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript.trim();
-        log("🎙️ You said: " + transcript);
+        setTranscript(transcript);
         sendToN8N(transcript);
       };
 
       recognition.onerror = (event) => {
-        log("❌ Speech Recognition Error: " + event.error);
+        setN8nStatus("❌ Speech Recognition Error: " + event.error);
       };
 
       recognition.onend = () => {
@@ -83,7 +104,8 @@
       };
 
       recognition.start();
-      log("🎧 Listening... Please speak now.");
+      setTranscript("Listening...");
+      setN8nStatus("--");
     }
   </script>
 </body>
