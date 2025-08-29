@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice AI Bot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; touch-action: manipulation; }
+
+        #transcript-container::-webkit-scrollbar { width: 6px; }
+        #transcript-container::-webkit-scrollbar-track { background: #1f2937; } /* bg-gray-800 */
+        #transcript-container::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+        #transcript-container::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+
+        .thinking-spinner {
+            position: absolute; top: -8px; left: -8px; right: -8px; bottom: -8px;
+            border-radius: 50%; border: 3px solid transparent; border-top-color: #3b82f6;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .speaker-pulse { animation: halo-pulse-orange 1.5s ease-out infinite; }
+        @keyframes halo-pulse-orange {
+            0% { box-shadow: 0 0 0 0px rgba(249, 115, 22, 0.5); }
+            100% { box-shadow: 0 0 0 25px rgba(249, 115, 22, 0); }
+        }
+        
+        /* Popup animation */
+        .popup-enter { animation: popup-in 0.3s ease-out forwards; }
+        .popup-leave { animation: popup-out 0.3s ease-in forwards; }
+
+        @keyframes popup-in {
+            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes popup-out {
+            from { opacity: 1; transform: translateY(0) scale(1); }
+            to { opacity: 0; transform: translateY(20px) scale(0.95); }
+        }
+        
+        /* Chat bubble highlight */
+        .chat-selected {
+            outline: 2px solid #3b82f6;
+            outline-offset: 2px;
+        }
+    </style>
+</head>
+<body class="bg-black text-white flex flex-col h-screen antialiased overflow-hidden p-0 sm:p-4">
+
+    <!-- Main App Container -->
+    <div class="flex flex-col h-full w-full bg-gray-900 sm:rounded-2xl overflow-hidden">
+        <!-- Header -->
+        <header class="flex items-center justify-between p-4 bg-gray-900/80 backdrop-blur-sm z-10 flex-shrink-0">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg></div>
+                <div class="flex items-center space-x-2">
+                     <img src="https://placehold.co/32x32/4A5568/E2E8F0?text=U" alt="User" class="w-8 h-8 rounded-full">
+                     <span class="font-semibold text-md">Work</span>
+                </div>
+            </div>
+            <div class="flex items-center space-x-4">
+                 <button id="summarize-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 text-sm flex items-center space-x-2">
+                    <span>✨</span>
+                    <span>Summarize</span>
+                </button>
+                <button class="text-gray-400 hover:text-white"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 p-4 md:p-6 overflow-hidden">
+             <!-- Transcript Container with border -->
+            <div id="transcript-container" class="h-full w-full bg-gray-800 border border-gray-700 rounded-2xl flex flex-col p-4 overflow-y-auto">
+                <div class="flex justify-start mb-4 group">
+                    <div class="bg-gray-700 rounded-lg p-3 max-w-xs md:max-w-md relative message-bubble">
+                        <p class="text-sm message-text">Hello! I'm your Gemini-powered assistant. Try asking a question, or tap the ✨ button below for some ideas!</p>
+                        <button class="read-out-button absolute -bottom-3 -right-2 p-1 bg-gray-600 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    
+        <!-- Popups Container -->
+        <div id="popup-overlay" class="fixed inset-0 bg-black/50 z-20 hidden"></div>
+
+        <!-- Suggested Questions Popup -->
+        <div id="suggestions-popup" class="fixed bottom-0 left-0 right-0 p-4 z-30 hidden">
+            <div class="bg-gray-800 rounded-xl p-4 max-w-lg mx-auto space-y-3">
+                <h3 class="text-center font-semibold text-gray-300">Suggested Questions</h3>
+                <button class="w-full text-left bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-sm transition-colors">"What's the weather like in Tokyo?"</button>
+                <button class="w-full text-left bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-sm transition-colors">"Tell me a fun fact about the Roman Empire."</button>
+                <button class="w-full text-left bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-sm transition-colors">"Explain quantum computing like I'm five."</button>
+            </div>
+        </div>
+    
+        <!-- Settings Menu Popup -->
+        <div id="settings-menu" class="fixed bottom-0 left-0 right-0 p-4 z-30 hidden">
+            <div class="bg-gray-800 rounded-xl p-2 max-w-lg mx-auto">
+                <h3 class="text-center font-semibold text-gray-300 p-2">Action Center</h3>
+                <button class="w-full text-left flex items-center space-x-3 hover:bg-gray-700 p-3 rounded-lg text-sm transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.875-5.029l-4.94-2.47a3.027 3.027 0 00-.002-2.214l4.94-2.47A3 3 0 0015 8z" /></svg><span>Share Conversation</span></button>
+                <button class="w-full text-left flex items-center space-x-3 hover:bg-gray-700 p-3 rounded-lg text-sm transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clip-rule="evenodd" /></svg><span>View Socials</span></button>
+                <button class="w-full text-left flex items-center space-x-3 hover:bg-gray-700 p-3 rounded-lg text-sm transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008 18.013a4 4 0 001.894-.454l.05-.025A2 2 0 0011 15.763v-5.43a2 2 0 00-1.106-1.79l-.05-.025A4 4 0 008 8.013a4 4 0 00-1.894.454l-.05.025A2 2 0 006 10.333zM10 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM14 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 0016 18.013a4 4 0 001.894-.454l.05-.025A2 2 0 0019 15.763v-5.43a2 2 0 00-1.106-1.79l-.05-.025A4 4 0 0016 8.013a4 4 0 00-1.894.454l-.05.025A2 2 0 0014 10.333z" /></svg><span>Give Feedback</span></button>
+            </div>
+        </div>
+
+        <!-- Controls Section -->
+        <div class="p-4 md:p-6 bg-gray-900/80 backdrop-blur-sm z-10 flex-shrink-0">
+            <div class="flex items-center justify-center">
+                <div class="w-1/4 flex justify-center">
+                     <button id="suggestions-button" class="text-gray-400 hover:text-white p-2 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 017.072 0" /></svg></button>
+                </div>
+                <div class="w-2/4 flex items-center justify-center">
+                    <div id="mic-container" class="relative flex items-center justify-center">
+                         <div id="dynamic-halo" class="absolute w-20 h-20 bg-blue-500/30 rounded-full pointer-events-none" style="transform: scale(0);"></div>
+                         <div id="speaker-halo" class="absolute w-20 h-20 rounded-full pointer-events-none"></div>
+                         <div id="thinking-spinner-container"></div>
+                         <button id="mic-button" class="relative w-20 h-20 bg-red-600 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out focus:outline-none hover:bg-red-700 active:bg-red-800">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /><path stroke-linecap="round" stroke-linejoin="round" d="M5 5l14 14" /></svg>
+                         </button>
+                    </div>
+                </div>
+                 <div class="w-1/4 flex justify-center">
+                    <button id="settings-button" class="text-gray-400 hover:text-white p-2 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg></button>
+                </div>
+            </div>
+            <p id="status-text" class="text-gray-400 text-center text-sm mt-4 h-5 transition-opacity duration-300">Tap to Speak</p>
+        </div>
+    </div>
+
+    <script>
+        const micButton = document.getElementById('mic-button');
+        const spinnerContainer = document.getElementById('thinking-spinner-container');
+        const statusText = document.getElementById('status-text');
+        const transcriptContainer = document.getElementById('transcript-container');
+        const summarizeButton = document.getElementById('summarize-button');
+        const dynamicHalo = document.getElementById('dynamic-halo');
+        const speakerHalo = document.getElementById('speaker-halo');
+        const suggestionsButton = document.getElementById('suggestions-button');
+        const settingsButton = document.getElementById('settings-button');
+        const suggestionsPopup = document.getElementById('suggestions-popup');
+        const settingsMenu = document.getElementById('settings-menu');
+        const popupOverlay = document.getElementById('popup-overlay');
+
+        const API_KEY = ""; // Leave as-is
+        const GEN_MODEL = 'gemini-2.5-flash-preview-05-20';
+        const TTS_MODEL = 'gemini-2.5-flash-preview-tts';
+
+        let isListening = false, isProcessing = false, conversationHistory = [], currentState = 'idle', premiumAudio, currentlyHighlightedBubble, audioContext, analyser, dataArray, source, animationFrameId;
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            Object.assign(recognition, { continuous: false, lang: 'en-US', interimResults: false });
+            recognition.onstart = () => { isListening = true; updateStatus('listening'); };
+            recognition.onend = () => { if (isListening) { isListening = false; stopVisualizer(); updateStatus('idle'); } };
+            recognition.onresult = (e) => { isListening = false; const transcript = e.results[e.results.length - 1][0].transcript.trim(); if (transcript) processUserMessage(transcript); else updateStatus('idle'); };
+            recognition.onerror = (e) => {
+                if (e.error !== 'no-speech') console.error(`Speech recognition error: ${e.error}`);
+                isListening = false; stopVisualizer(); updateStatus('idle');
+            };
+        } else { micButton.disabled = true; appendMessage("Speech recognition is not supported in this browser.", 'system'); }
+
+        async function setupAudioVisualizer() { if (audioContext) return; try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); audioContext = new (window.AudioContext || window.webkitAudioContext)(); analyser = audioContext.createAnalyser(); source = audioContext.createMediaStreamSource(stream); source.connect(analyser); analyser.fftSize = 256; dataArray = new Uint8Array(analyser.frequencyBinCount); } catch (err) { console.error("Error setting up audio visualizer:", err); } }
+        function visualize() { if (!analyser) return; analyser.getByteFrequencyData(dataArray); const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length; const scale = 1 + (avg / 256) * 1.5; dynamicHalo.style.transform = `scale(${scale})`; animationFrameId = requestAnimationFrame(visualize); }
+        function startVisualizer() { if (audioContext) { dynamicHalo.style.transition = 'transform 100ms ease-out'; visualize(); } }
+        function stopVisualizer() { cancelAnimationFrame(animationFrameId); dynamicHalo.style.transition = 'transform 300ms ease-in'; dynamicHalo.style.transform = 'scale(0)'; }
+
+        function updateStatus(state) {
+            currentState = state;
+            spinnerContainer.innerHTML = '';
+            speakerHalo.classList.remove('speaker-pulse');
+            micButton.className = 'relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out focus:outline-none';
+            switch (state) {
+                case 'listening': isProcessing = false; statusText.textContent = 'Listening...'; micButton.classList.add('bg-blue-600', 'hover:bg-blue-700'); micButton.innerHTML = `<svg class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>`; startVisualizer(); break;
+                case 'thinking': stopVisualizer(); isProcessing = true; statusText.textContent = 'Thinking...'; micButton.classList.add('bg-blue-600'); micButton.innerHTML = `<svg class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>`; spinnerContainer.innerHTML = `<div class="thinking-spinner"></div>`; break;
+                case 'replying': case 'speaking': stopVisualizer(); isProcessing = true; statusText.textContent = 'Replying...'; micButton.classList.add('bg-orange-500'); micButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>`; speakerHalo.classList.add('speaker-pulse'); break;
+                case 'idle': default: stopVisualizer(); isProcessing = false; statusText.textContent = 'Tap to Speak'; micButton.classList.add('bg-red-600', 'hover:bg-red-700'); micButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /><path stroke-linecap="round" stroke-linejoin="round" d="M5 5l14 14" /></svg>`; break;
+            }
+        }
+        
+        function appendMessage(text, sender) { const m = document.createElement('div'); m.className = 'flex mb-4 group'; const b = document.createElement('div'); b.className = 'message-bubble rounded-lg p-3 max-w-xs md:max-w-md relative transition-all duration-200'; const p = document.createElement('p'); p.className = 'text-sm message-text'; p.textContent = text; b.appendChild(p); if (sender === 'user') { m.classList.add('justify-end'); b.classList.add('bg-blue-600', 'text-white'); } else if (sender === 'ai') { m.classList.add('justify-start'); b.classList.add('bg-gray-700'); } else { m.classList.add('justify-center'); b.classList.add('bg-gray-800', 'text-gray-400', 'text-center', 'max-w-full'); if (sender === 'summary') b.innerHTML = `<p class="text-sm font-semibold mb-2">✨ Summary</p>${text.split('\n').map(l=>`<p class="text-sm text-left">${l}</p>`).join('')}`; } const btn = document.createElement('button'); btn.className = 'read-out-button absolute -bottom-3 p-1 bg-gray-600 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity'; btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"></path></svg>`; if(sender !== 'summary' && sender !== 'system') b.appendChild(btn); if(sender === 'user') btn.classList.add('-left-2'); else btn.classList.add('-right-2'); m.appendChild(b); transcriptContainer.appendChild(m); transcriptContainer.scrollTop = transcriptContainer.scrollHeight; return b; }
+        
+        function clearHighlight() { if (currentlyHighlightedBubble) { currentlyHighlightedBubble.classList.remove('chat-selected'); currentlyHighlightedBubble = null; } }
+
+        async function speakText(text, bubbleToHighlight) { 
+            window.speechSynthesis.cancel(); 
+            clearHighlight();
+            if (bubbleToHighlight) { currentlyHighlightedBubble = bubbleToHighlight; bubbleToHighlight.classList.add('chat-selected'); }
+            
+            try { 
+                updateStatus('speaking'); 
+                const { audioData, mimeType } = await callTtsApi(text); 
+                const pcm16 = new Int16Array(base64ToArrayBuffer(audioData)); 
+                const wavBlob = pcmToWav(pcm16, parseInt(mimeType.match(/rate=(\d+)/)[1], 10)); 
+                premiumAudio = new Audio(URL.createObjectURL(wavBlob)); 
+                premiumAudio.play(); 
+                premiumAudio.onended = () => { premiumAudio = null; if (currentState === 'speaking') updateStatus('idle'); clearHighlight(); }; 
+            } catch (error) { 
+                console.error("TTS Error:", error); 
+                const u = new SpeechSynthesisUtterance(text); 
+                u.onstart = () => updateStatus('replying'); 
+                u.onend = () => { if (currentState === 'replying') updateStatus('idle'); clearHighlight(); }; 
+                window.speechSynthesis.speak(u); 
+            } 
+        }
+        
+        async function processUserMessage(transcript) { const userBubble = appendMessage(transcript, 'user'); conversationHistory.push({ role: 'user', parts: [{ text: transcript }] }); updateStatus('thinking'); try { const aiResponse = await callGenerativeApi(conversationHistory); const aiBubble = appendMessage(aiResponse, 'ai'); conversationHistory.push({ role: 'model', parts: [{ text: aiResponse }] }); speakText(aiResponse, aiBubble); } catch (error) { console.error("API Error:", error); appendMessage("An error occurred.", 'system'); updateStatus('idle'); } }
+        async function summarizeConversation() { if (isProcessing || conversationHistory.length < 2) return appendMessage("Have a longer conversation to summarize.", 'system'); updateStatus('thinking'); const transcript = conversationHistory.map(t => `${t.role === 'user' ? 'Human' : 'AI'}: ${t.parts[0].text}`).join('\n'); try { const summary = await callGenerativeApi([{ role: 'user', parts: [{ text: `Summarize this conversation:\n\n${transcript}` }] }]); appendMessage(summary, 'summary'); } catch (error) { console.error("Summarize Error:", error); } finally { updateStatus('idle'); } }
+
+        async function callApi(url, payload) { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); if (!r.ok) throw new Error(`API failed: ${r.status}`); return r.json(); }
+        async function callGenerativeApi(h) { const r = await callApi(`https://generativelanguage.googleapis.com/v1beta/models/${GEN_MODEL}:generateContent?key=${API_KEY}`, { contents: h }); return r.candidates[0].content.parts[0].text; }
+        async function callTtsApi(text) { const r = await callApi(`https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL}:generateContent?key=${API_KEY}`, { contents: [{ parts: [{ text }] }], generationConfig: { responseModalities: ["AUDIO"] }, model: TTS_MODEL }); const p = r.candidates[0].content.parts[0]; return { audioData: p.inlineData.data, mimeType: p.inlineData.mimeType }; }
+        function base64ToArrayBuffer(b64) { const s = window.atob(b64); const l = s.length; const bytes = new Uint8Array(l); for (let i = 0; i < l; i++) bytes[i] = s.charCodeAt(i); return bytes.buffer; }
+        function pcmToWav(pcm, sampleRate) { const h = new ArrayBuffer(44); const v = new DataView(h); v.setUint32(0, 0x52494646, false); v.setUint32(4, 36 + pcm.byteLength, true); v.setUint32(8, 0x57415645, false); v.setUint32(12, 0x666d7420, false); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); v.setUint32(36, 0x64617461, false); v.setUint32(40, pcm.byteLength, true); return new Blob([h, pcm], { type: 'audio/wav' }); }
+
+        function togglePopup(popup) {
+            const isHidden = popup.classList.contains('hidden');
+            if (isHidden) {
+                popupOverlay.classList.remove('hidden');
+                popup.classList.remove('hidden', 'popup-leave');
+                popup.classList.add('popup-enter');
+            } else {
+                popupOverlay.classList.add('hidden');
+                popup.classList.remove('popup-enter');
+                popup.classList.add('popup-leave');
+                setTimeout(() => popup.classList.add('hidden'), 300);
+            }
+        }
+
+        micButton.addEventListener('click', () => { if (!recognition) return; switch(currentState) { case 'idle': if (!audioContext) setupAudioVisualizer(); recognition.start(); break; case 'listening': recognition.stop(); break; case 'speaking': case 'replying': window.speechSynthesis.cancel(); if (premiumAudio) { premiumAudio.pause(); premiumAudio = null; } clearHighlight(); recognition.start(); break; } });
+        transcriptContainer.addEventListener('click', (e) => { const bubble = e.target.closest('.message-bubble'); if (bubble) { const btn = bubble.querySelector('.read-out-button'); if (btn && e.target.closest('.read-out-button')) { speakText(bubble.querySelector('.message-text').textContent, bubble); } } });
+        summarizeButton.addEventListener('click', summarizeConversation);
+        suggestionsButton.addEventListener('click', () => togglePopup(suggestionsPopup));
+        settingsButton.addEventListener('click', () => togglePopup(settingsMenu));
+        popupOverlay.addEventListener('click', () => { if (!suggestionsPopup.classList.contains('hidden')) togglePopup(suggestionsPopup); if (!settingsMenu.classList.contains('hidden')) togglePopup(settingsMenu); });
+        suggestionsPopup.addEventListener('click', (e) => { if (e.target.tagName === 'BUTTON') { processUserMessage(e.target.textContent); togglePopup(suggestionsPopup); } });
+        
+        updateStatus('idle');
+    </script>
+</body>
+</html>
+
